@@ -1,0 +1,117 @@
+-- Exploratory Data Analysis
+
+SELECT *
+FROM world_layoff.layoffs_staging2;
+
+-- Revisamos el total laid off
+
+SELECT MAX(total_laid_off)
+FROM world_layoff.layoffs_staging2;
+
+-- Percentage laid off
+
+SELECT MAX(total_laid_off), MAX(percentage_laid_off)
+FROM world_layoff.layoffs_staging2;
+
+-- Revisamos que compañias cerraron su operatoria por un despido masivo en diferentes ordenes
+
+SELECT *
+FROM world_layoff.layoffs_staging2
+WHERE percentage_laid_off = 1
+ORDER BY total_laid_off DESC;
+
+SELECT *
+FROM world_layoff.layoffs_staging2
+WHERE percentage_laid_off = 1
+ORDER BY funds_raised_millions DESC;
+
+SELECT 
+    company, 
+    SUM(total_laid_off)
+FROM 
+    world_layoff.layoffs_staging2
+GROUP BY 
+    company
+ORDER BY 
+    2 DESC;
+
+-- Que rango de fechas tenemos
+
+SELECT 
+	MIN(`date`), 
+	MAX(`date`)
+FROM world_layoff.layoffs_staging2;
+
+-- Analizamos que industrias fueron las mas afectadas
+
+SELECT industry, SUM(total_laid_off)
+FROM world_layoff.layoffs_staging2
+GROUP BY industry
+ORDER BY 2 DESC;
+
+-- Hagamos el mismo ejercicio con el pais
+
+SELECT country, SUM(total_laid_off)
+FROM world_layoff.layoffs_staging2
+GROUP BY country
+ORDER BY 2 DESC;
+
+-- Revisemos por fecha individual
+
+SELECT YEAR(`date`), SUM(total_laid_off)
+FROM world_layoff.layoffs_staging2
+GROUP BY YEAR(`date`)
+ORDER BY 2 DESC;
+
+-- Mismo analisis con el stage de la compañia
+
+SELECT stage, SUM(total_laid_off)
+FROM world_layoff.layoffs_staging2
+GROUP BY stage
+ORDER BY 2 DESC;
+
+-- Veamos el total de despidos nuevamente pero esta vez por año/mes
+
+SELECT SUBSTRING(`date`,1,7) AS `Month`,
+SUM(total_laid_off)
+FROM world_layoff.layoffs_staging2
+WHERE SUBSTRING(`date`,1,7) IS NOT NULL
+GROUP BY `Month`
+ORDER BY 1 ASC;
+
+-- Calcularemos un total acumulado correspondiente a la sumatoria de despidos que se iran dando por mes
+
+WITH rolling_total AS
+(
+SELECT SUBSTRING(`date`,1,7) AS `Month`,
+SUM(total_laid_off) AS total_off
+FROM world_layoff.layoffs_staging2
+WHERE SUBSTRING(`date`,1,7) IS NOT NULL
+GROUP BY `Month`
+ORDER BY 1 ASC)
+SELECT `Month`, 
+total_off,
+SUM(total_off) OVER(ORDER BY `Month`) AS Rolling_total
+FROM rolling_total;
+
+-- Revisemos nuevamente los despidos por compañia por año
+
+SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM world_layoff.layoffs_staging2
+GROUP BY company, YEAR(`date`)
+ORDER BY 3 DESC;
+
+-- Top 5 for the Total laidoff by year
+-- Generamos 2 CTE, uno para las compañias y el segundo para el ranking
+
+WITH Company_year (company, years, total_laid_off) AS
+(SELECT company, YEAR(`date`), SUM(total_laid_off)
+FROM world_layoff.layoffs_staging2
+GROUP BY company, YEAR(`date`)
+ORDER BY 3 DESC), Company_Year_Rank AS 
+(SELECT *, DENSE_RANK() OVER( PARTITION BY years ORDER BY total_laid_off DESC) AS Ranking
+FROM Company_year
+WHERE years IS NOT NULL)
+SELECT *
+FROM Company_Year_Rank
+WHERE Ranking <= 5
